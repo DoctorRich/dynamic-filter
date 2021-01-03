@@ -12,6 +12,9 @@ A number of operations work out of the box with the default parser and filter fa
 * Runtime date time values - @TODAY, @NOW
 
 ```js
+import { createDefaultFilterFactory } from 'dynamic-filter';
+import { createDefaultFilterParser } from 'dynamic-filter';
+
 // create default filter parser and factory
 const filterParser = createDefaultFilterParser();
 const filterFactory = createDefaultFilterFactory();
