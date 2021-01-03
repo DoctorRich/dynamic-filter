@@ -31,9 +31,11 @@ const context = {
 
 // filter string
 const filterString = '[objectNum] = {contextNum} + 1 | [objectDate] > (@TODAY - DURATION(P1D)) ';
+
 // parse and create filter predicate
 const filterDefinition = filterParser.parse(filterString);
 const filterPredicate = filterFactory.create(filterDefinition, context);
+
 // filter results
 const result = items.filter(filterPredicate);
 ```
