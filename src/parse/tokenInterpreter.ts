@@ -1,3 +1,4 @@
+import { ParseErrorHander } from "./parseErrorHandler";
 import { FilterTerm, InterpreterGroup, TermTreeOperator, TermTreeValue, TransientParseItem } from "./parseTypes";
 
 /**
@@ -31,7 +32,8 @@ export class TokenInterpreter {
                 termStack: [],
                 currentTokenIndex: -1
             },
-            new TermFactory()
+            new TermFactory(),
+            new ParseErrorHander(tokens)
         );
         stateManager.pushGroup();
         return stateManager;
@@ -109,24 +111,12 @@ class StateManager {
 
     constructor(
         private _state: InterpreterState,
-        private _termFactory: TermFactory
+        private _termFactory: TermFactory,
+        private _errorHander: ParseErrorHander
     ) { }
 
     public throwParseError(m: string) {
-        const padding = 5;
-        const start = 0; //Math.max(0, this._state.currentTokenIndex - padding);
-        const stop = this._state.tokens.length; //Math.min(this._state.tokens.length, this._state.currentTokenIndex + padding);
-        let point = start === 0 ? '' : '... ';
-        for (let i = start; i < stop; ++i) {
-            if (i === this._state.currentTokenIndex) {
-                point += ' -->';
-            }
-            point += this._state.tokens[i];
-            if (i === this._state.currentTokenIndex) {
-                point += '<-- ';
-            }
-        }
-        throw new Error('Error at: ' + point + ' ' + m);
+        this._errorHander.throwParseError(this._state.currentTokenIndex, m);
     }
 
     //#region Token iteration
@@ -218,6 +208,11 @@ class StateManager {
         return this.getCurrentGroup().transientItem = {};
     }
 
+    public getCurrentGroupLastItem() {
+        const terms = this.getCurrentGroup().terms;
+        return terms[terms.length - 1];
+    }
+
     public getCurrentGroup() {
         return this._state.termStack[this._state.termStack.length - 1];
     }
@@ -268,7 +263,7 @@ class StartGroupHander implements TokenHandler {
                     this._stateManager.pushGroup();
                 }
             } else {
-                this._stateManager.throwParseError('Invalid item before group:' + this._stateManager.getCurrentTransientItem().value);
+                this._stateManager.throwParseError('Previous item must be an operator or a function name');
             }
             return true;
         }
@@ -298,7 +293,7 @@ class EndGroupHandler implements TokenHandler {
                     this.handleLogicalEndGroup();
                 }
             } else {
-                this._stateManager.throwParseError('cannot end group here');
+                this._stateManager.throwParseError('Mismatched token');
             }
             return true;
         }
@@ -352,7 +347,12 @@ class OperatorHander implements TokenHandler {
 
     private isOperatorValid() {
         // can't be the first item in a group and can't follow another operator
-        return !(this._stateManager.isGroupEmpty() && this._stateManager.isTransientItemEmpty());
+        const emptyGroup = this._stateManager.isGroupEmpty();
+        const lastItem = this._stateManager.getCurrentGroupLastItem();
+        const emptyTransient = this._stateManager.isTransientItemEmpty();
+        const nothingParsed = emptyGroup && emptyTransient;
+        const operatorExists = emptyTransient && lastItem?.rhsOperator != null;
+        return !(nothingParsed || operatorExists);
     }
 
 }

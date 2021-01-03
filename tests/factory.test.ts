@@ -176,24 +176,4 @@ describe('Filter Factory', () => {
 
     });
 
-    describe('Parser error', () => {
-        const filterParser = createDefaultFilterParser();
-
-        test('Single clause: property = context property', async () => {
-            // arrange
-            const filterString = '[propA] == {propB} < < 5';
-            // act/assert
-            expect(() => filterParser.parse(filterString)).toThrow('');
-        });
-
-        test('Single clause:  too many brackets', async () => {
-            // arrange
-            const filterString = '([propA] = {propB}))';
-            // act/assert
-            expect(() => filterParser.parse(filterString)).toThrow('Error at: ([propA]={propB}) -->)<--  cannot end group here');
-        });
-
-    });
-
-
 });

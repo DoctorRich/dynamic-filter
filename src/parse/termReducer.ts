@@ -1,4 +1,4 @@
-import { stringify } from 'json5';
+import { ParseErrorHander } from "./parseErrorHandler";
 import { TermTreeOperator, TermTreeNode, ReducedTermTreeNode } from './parseTypes';
 
 export class TermReducer {
@@ -15,32 +15,37 @@ export class TermReducer {
         ];
     }
 
-    public gatherAllTerms(inputTerm: TermTreeNode): ReducedTermTreeNode {
+    public gatherAllTerms(parseErrorHandler: ParseErrorHander, inputTerm: TermTreeNode): ReducedTermTreeNode {
         // gather binary, then predicates, and finally logic terms
-        return this.checkValidityAndPrune(inputTerm,
+        return this.checkValidityAndPrune(parseErrorHandler,
             this.logicOperatorTokens.reduce((term, o) => this.gatherTerms({ operator: o, operatorType: 'logic' }, term),
                 this.predicateOperatorTokens.reduce((term, o) => this.gatherTerms({ operator: o, operatorType: 'predicate' }, term),
                     this.binaryOperatorTokens.reduce((term, o) => this.gatherTerms({ operator: o, operatorType: 'binary' }, term), inputTerm))))
             ;
     }
 
-    private checkValidityAndPrune(input: TermTreeNode, t: TermTreeNode): ReducedTermTreeNode {
+    private checkValidityAndPrune(parseErrorHandler: ParseErrorHander, t: TermTreeNode): ReducedTermTreeNode {
         // recursive validity test
         switch (t.type) {
             case 'group':
                 throw new Error('Group remaining ' + t.terms.length + ' = ' + JSON.stringify(t));
-                break;
             case 'unary':
                 if (t.operands.length != 1) throw new Error();
-                t.operands.forEach(i => this.checkValidityAndPrune(input, i));
+                t.operands.forEach(i => this.checkValidityAndPrune(parseErrorHandler, i));
                 break;
             case "predicate":
-                if (t.operands.length != 2) throw new Error();
-                t.operands.forEach(i => this.checkValidityAndPrune(input, i));
+                if (t.operands.length != 2) {
+                    parseErrorHandler.throwParseError(t.tokenIndex, `Predicate must have only two terms`);
+                }
+                const illegalPredicate = t.operands.find(i => i.type === 'predicate');
+                if (illegalPredicate !== undefined) {
+                    parseErrorHandler.throwParseError(illegalPredicate.tokenIndex, `Predicate result should not be used as input for the ${t.operator} predicate`);
+                }
+                t.operands.forEach(i => this.checkValidityAndPrune(parseErrorHandler, i));
                 break;
             case "logic":
             case "binary":
-                t.operands.forEach(i => this.checkValidityAndPrune(input, i));
+                t.operands.forEach(i => this.checkValidityAndPrune(parseErrorHandler, i));
                 break;
 
         }
@@ -58,6 +63,7 @@ export class TermReducer {
             case 'group':
                 t.terms = this.gatherGroupTerms(gatheringOperator, t.terms);
                 if (t.terms.length === 1) {
+                    // collapse group with only one entry
                     term = t.terms[0];
                     term.rhsOperator = t.rhsOperator;
                     term.rhsOperatorIndex = t.rhsOperatorIndex;
@@ -145,7 +151,7 @@ export class TermReducer {
         const currentGroup = state.getAndResetCurrent();
         const newOperator: TermTreeOperator =
         {
-            tokenIndex: currentGroup?.[0].tokenIndex,
+            tokenIndex: currentGroup?.[0].rhsOperatorIndex,
             type: gatherOperator.operatorType,
             operator: gatherOperator.operator,
             operands: currentGroup,

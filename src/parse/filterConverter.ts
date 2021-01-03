@@ -1,3 +1,4 @@
+import { stringify } from "json5";
 import { binaryClause, binaryOp, groupClause, unaryOp } from "../definition/definitionCreators";
 import { BinaryFilterClauseDefinition, FilterClauseDefinition, GroupFilterClauseDefinition } from "../definition/filterClauseDefinition";
 import { FilterOperandDefinition } from "../definition/filterOperandDefinition";
@@ -7,7 +8,7 @@ import { TermTreeNode, TermTreeOperator } from "./parseTypes";
 export class FilterConverter {
 
     constructor(
-        private readonly _valueConverter: ValueConverter
+        private readonly _valueConverter: ValueConverter,
     ) { }
 
     public convertToFilter(term: TermTreeNode): FilterClauseDefinition {
@@ -21,22 +22,17 @@ export class FilterConverter {
             case 'predicate':
                 return this.convertPredicate(t);
         }
-        throw new Error(`${t.type} is not valid as a term for a logical operator`)
+        throw new Error(`${t.type} is not valid as a term for a logical operator`);
     }
 
     private convertLogic(t: TermTreeOperator): GroupFilterClauseDefinition {
-        if (t?.type !== 'logic') {
-            throw new Error(`${t.type} is not a logic operator`);
-        }
+        // logic operator term can only contain logic or predicate groups (resulting in a boolean)
         return groupClause(t.operator, ...t.operands.map(i => this.convertLogicalOperatorTerm(i)));
     }
 
     private convertPredicate(t: TermTreeOperator): BinaryFilterClauseDefinition {
-        if (t?.type !== 'predicate') {
-            throw new Error(`${t.type} is not a predicate operator`);
-        }
         if (t?.operands?.length !== 2) {
-            throw new Error(`predicate ${t} does not have required number of operands`);
+            throw new Error(`Predicate ${t.operator} does not have required number of operands`);
         }
         return binaryClause(this.convertToOperand(t.operands[0]), t.operator, this.convertToOperand(t.operands[1]));
     }
@@ -48,9 +44,8 @@ export class FilterConverter {
             case 'binary':
                 return binaryOp(t.operator, ...t.operands.map(i => this.convertToOperand(i)));
             default:
-                throw new Error(`Binary clause operand ${t} must be unary or binary operation`);
+                throw new Error(`${stringify(t)} Binary clause operand ${t.operator} is a ${t.type} but must be a unary or binary operation`);
         }
-
     }
 
     private convertToOperand(t: TermTreeNode): FilterOperandDefinition {
@@ -63,7 +58,7 @@ export class FilterConverter {
             case 'binary':
                 return this.convertClauseOperator(t);
             default:
-                throw new Error(`Binary clause operand ${t} must be operator or value`);
+                throw new Error(`Binary clause operand ${t.type} must be operator or value`);
         }
     }
 }
